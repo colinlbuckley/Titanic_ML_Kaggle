@@ -1,0 +1,90 @@
+---
+title: "Titanic_EDA"
+author: "Colin Buckley"
+date: "9/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exploratory Data Analysis: Titanic - Machine Learning from Disaster
+
+## Objectives
+- Examine basic structure and data quality including variables, missing values etc.
+- Explore properties of data including size, structure, and statistical properties
+- Characterize univariate distribution/variability by column.
+- Investigate statistical properties and relationships between our target variable (survival) and others.
+- Gain a sense of the overall predictive power for future modeling.
+
+## Setup and Data Cleaning
+Examining the [competition page](https://www.kaggle.com/c/titanic) on Kaggle gives us plenty of information to get started. We are provided training and test data sets and a data dictionary with variable definitions.
+
+#### Setup
+```{r setup+cleaning, message=FALSE}
+# Load Dependencies
+library(tidyverse)
+library(magrittr)
+
+# Load Data
+training <- read_csv("train.csv")
+
+# Quick Cleaning
+factor_cols <- c("Pclass", "Sex", "Embarked", "Survived", "SibSp", "Parch")
+training %<>% mutate(across(all_of(factor_cols), as_factor))
+levels(training$Pclass) <- c("First", "Second", "Third")
+levels(training$Sex) <- c("Male", "Female")
+levels(training$Survived) <- c("No", "Yes")
+levels(training$Embarked) <- c("Southampton", "Cherbourg", "Queenstown")
+```
+
+## EDA
+
+#### Data Structure and Quality
+```{r}
+# Examine column names/length
+glimpse(training) # Notice we can confirm our factors are assigned correctly
+
+# Profile Missing Values
+colMeans(is.na(training))
+```
+
+#### Univariate Analysis
+```{r}
+
+```
+
+## Regression Analysis
+
+```{r regression_setup, message = FALSE}
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+```
+
+Before we proceed, we have to check our variable relationships for missing cells, combinations with few or no entries that could be problematic.
+
+```{r, echo = FALSE}
+# Check for Missing Cells in Categorical Comparisons
+xtabs(~ Survived + Pclass, data = training)
+xtabs(~ Survived + Sex, data = training)
+xtabs(~ Survived + Embarked, data = training)
+xtabs(~ Survived + Parch, data = training)
+xtabs(~ Survived + SibSp, data = training)
+```
+
+```{r}
+logit_Pclass_Sex <- glm(Survived ~ Pclass + Sex, 
+                        family = binomial(link="logit"), 
+                        data = training)
+
+tab_model(logit_Pclass_Sex)
+```
+
+#### Univariate
+
+#### Multivariate
+
+## References
+"Exploratory Data Analysis for Feature Selection in Machine Learning" - Google
