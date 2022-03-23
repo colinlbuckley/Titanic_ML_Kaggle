@@ -1,90 +1,489 @@
 ---
-title: "Titanic_EDA"
+title: "Exploratory Data Analysis: Titanic - Machine Learning from Disaster"
 author: "Colin Buckley"
 date: "9/26/2021"
-output: html_document
+output:
+        html_document:
+                toc: true
+                toc_depth: 3
+                toc_float: true
+                theme: simplex
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Exploratory Data Analysis: Titanic - Machine Learning from Disaster
+***
 
-## Objectives
+## **Introduction**
+
+### Objectives:
 - Examine basic structure and data quality including variables, missing values etc.
 - Explore properties of data including size, structure, and statistical properties
 - Characterize univariate distribution/variability by column.
-- Investigate statistical properties and relationships between our target variable (survival) and others.
+- Investigate statistical properties and relationships between our target variable (survival) and predictors.
 - Gain a sense of the overall predictive power for future modeling.
+- Build a baseline logistic regression model.
+- Perform initial feature engineering.
 
-## Setup and Data Cleaning
-Examining the [competition page](https://www.kaggle.com/c/titanic) on Kaggle gives us plenty of information to get started. We are provided training and test data sets and a data dictionary with variable definitions.
+### Setup and Data Cleaning:
+Examining the [competition page](https://www.kaggle.com/c/titanic) on Kaggle gives us plenty of information to get started. We are provided pre-divided training and test data sets as well as a data dictionary with variable definitions.
 
-#### Setup
-```{r setup+cleaning, message=FALSE}
-# Load Dependencies
+Let's get started by loading our data set and necessary packages.
+
+```{r dependencies, message=FALSE}
+# Load packages
 library(tidyverse)
 library(magrittr)
+library(knitr)
+library(sjPlot) ## Regression Tables
+library(sjmisc)  ## "
+library(sjlabelled) ## "
+library(aod) ## Regression modeling tools
 
-# Load Data
-training <- read_csv("train.csv")
+# Read data
+train_raw <- read_csv("data/train.csv")
 
-# Quick Cleaning
-factor_cols <- c("Pclass", "Sex", "Embarked", "Survived", "SibSp", "Parch")
-training %<>% mutate(across(all_of(factor_cols), as_factor))
-levels(training$Pclass) <- c("First", "Second", "Third")
-levels(training$Sex) <- c("Male", "Female")
-levels(training$Survived) <- c("No", "Yes")
-levels(training$Embarked) <- c("Southampton", "Cherbourg", "Queenstown")
+glimpse(train_raw)
 ```
 
-## EDA
+First, let's look at our variable names and what they represent.  
+`PassengerId` is a primary key, unique for each passenger.   
+`Survived` is our target variable, a binary value denoting whether a passenger survived (1) or died (0).  
+`Name`, `Sex`, and `Age` are self-explanatory, although I won't be trying to do much with `Name` right now (in the future, I might come back and try to squeeze some information out of titles, name length etc.).  
+`Pclass` represents the cabin class (first, second, or third) for each passenger, and therefore should serve us well as a proxy for socioeconomic status.  
+`SibSp` is the total number of siblings and spouses on board.  
+`Parch` is the total number of parents and children aboard.  
+`Ticket` is the ticket number.  
+`Fare` is the ticket price in USD.  
+`Cabin` is the identifying cabin number, which may hold some information about the position of the cabin in the ship, deck level etc.  
+`Embarked` is the port of embarkation (Cherbourg, Southampton, and Queensland).  
 
-#### Data Structure and Quality
-```{r}
+Although there is almost certainly some relevant information in `Name`, `Cabin`, and `Ticket`, I will be excluding them for the purposes of this initial analysis. In the future, I may revisit this and engineer those features for a potential better fit.   
+
+Before exploring any further, I'll select the variables we want to carry forward and convert our factor and logical variables to the correct format.
+```{r cleaning}
+# Cleaning
+factor_cols <- c("Pclass", "Sex", "Embarked") # Designate variables to be factors
+
+training <- train_raw %>% 
+        select(PassengerId, 
+               Survived, 
+               Pclass, 
+               Sex:Parch, 
+               Fare, 
+               Embarked) %>% # Select variables to be used
+        mutate(across(all_of(factor_cols), as.factor)) # Format factors accordingly
+
+# Set correct factor levels
+levels(training$Pclass) <- c("First", "Second", "Third")
+levels(training$Embarked) <- c("Cherbourg", "Queenstown", "Southampton")
+training$Survived <- as.logical(training$Survived)
+```
+ 
+***
+  
+## **Visual EDA**
+
+### Possible Questions to Pursue:
+* Were women and children more likely to survive (i.e. conventional lifeboat wisdom of "women and children first")
+* Were more well-off passengers more likely to survive? If so, how does this effect differ between `Fare` and `Pclass`?
+* Were elderly passengers more or less likely to survive?
+
+### Data Structure and Quality:
+First, let's take a broad look at our variables and the general shape of our data.
+```{r overview}
 # Examine column names/length
 glimpse(training) # Notice we can confirm our factors are assigned correctly
 
 # Profile Missing Values
 colMeans(is.na(training))
+
+# Remove trivial missing values in Embarked
+# training %<>% drop_na(Embarked)
 ```
 
-#### Univariate Analysis
-```{r}
+The relatively high rate of missing values in Age could interfere with our analysis, but the missing values in Embarked should be of no issue and we can simply omit them when necessary with the commented code.
 
+### Visual EDA (Numerical Variables): {.tabset}
+First, we'll look at the univariate distribution for each numerical input.  
+
+#### Fare
+```{r Fare_dist, figures-side, fig.show="hold", out.width="50%"}
+# Fare distribution
+training %>%
+        ggplot(aes(Fare)) +
+        geom_histogram(binwidth = 10, 
+                       color = "black", 
+                       fill = "grey") +
+        geom_vline(xintercept = median(training$Fare), 
+                   color = "red") +
+        geom_rug(alpha = 0.2) +
+        labs(title = "Fare Distribution",
+             x = "Fare ($)",
+             y = "Number of Passengers") +
+        theme_bw()
+
+# Log transformed Fare distribution
+training %>%
+        ggplot(aes(log(Fare))) +
+        geom_histogram(binwidth = 0.12,
+                       color = "black", 
+                       fill = "grey") +
+        geom_vline(xintercept = median(log(training$Fare)),
+                   color = "red") +
+        geom_rug(alpha = 0.2) +
+        labs(title = "Log Transformed Fare Distribution",
+             x = "ln(Fare)",
+             y = "Number of Passengers") +
+        theme_bw()
 ```
+  
+The histogram on the left shows `Fare`'s heavily right-skewed distribution, and the histogram on the right shows the same data with a natural log transformation applied in an attempt to get a bit closer to a normal distribution (note the warning indicating that 15 non-finite values have been excluded, these are passengers for whom `Fare` = 0). We can see that there's still some significant asymmetry, but the log transformation should improve our model performance somewhat later on. There is likely some significant room for improvement in terms of feature engineering here, but the log transformation is a quick and dirty way to bring us closer to where we want to be.
 
-## Regression Analysis
+#### Age
+```{r Age_dist, figures-side, fig.show="hold", out.width="50%"}
+training %>%
+        drop_na(Age) %>% # Recall high NA count for Age
+        ggplot(aes(Age)) +
+        geom_histogram(binwidth = 4, 
+                       color = "black", 
+                       fill = "grey") +
+        geom_vline(xintercept = median(training$Age, na.rm = TRUE), 
+                   color = "red") +
+        geom_rug(alpha = 0.2) +
+        labs(title = "Age Distribution",
+             x = "Age",
+             y = "Number of Passengers") +
+        theme_bw()
 
-```{r regression_setup, message = FALSE}
-library(sjPlot)
-library(sjmisc)
-library(sjlabelled)
+training %>%
+        mutate(Age = log(Age)) %>%
+        drop_na(Age) %>% # Recall high NA count for Age
+        ggplot(aes(Age)) +
+        geom_histogram(binwidth = 0.16, 
+                       color = "black", 
+                       fill = "grey") +
+        geom_vline(xintercept = median(log(training$Age), na.rm = TRUE), 
+                   color = "red") +
+        geom_rug(alpha = 0.2) +
+        labs(title = "Age Distribution",
+             x = "Age",
+             y = "Number of Passengers") +
+        theme_bw()
 ```
+  
+As with `Fare`, I've applied a natural log transformation to try to approach a normal distribution. We can see that the second distribution is much more symmetrical about the median, although it has a long tail due to the somewhat bimodal shape of the raw `Age` distribution. It's possible that this could be further rectified by separating children and adults entirely into separate variables.
 
-Before we proceed, we have to check our variable relationships for missing cells, combinations with few or no entries that could be problematic.
+#### Parents + Children
+```{r Parch_dist}
+# Parch distribution
+training %>%
+        ggplot(aes(Parch)) +
+        geom_histogram(binwidth = 2, 
+                       color = "black", 
+                       fill = "grey", 
+                       stat = "count") +
+        geom_vline(xintercept = median(training$Parch), 
+                   color = "red") +
+        geom_rug(alpha = 0.2) +
+        labs(title = "Parch Distribution",
+             x = "Number of Parents and Children Aboard",
+             y = "Number of Passengers") +
+        theme_bw()
+```
+  
+With `Parch` the right-skew issue is even more apparent and could be problematic later on in terms of regression modeling. A log transformation won't help us much here due to the high count of zeros. It's quite likely that we will be better off creating categorical dummy variables that represent certain scenarios in context (e.g. zero parents/children aboard versus any other number).
 
-```{r, echo = FALSE}
-# Check for Missing Cells in Categorical Comparisons
+#### Siblings + Spouses
+```{r SibSp_dist}
+training %>%
+        ggplot(aes(SibSp)) +
+        geom_histogram(binwidth = 1, color = "black", fill = "grey") +
+        geom_vline(xintercept = median(training$SibSp),
+                   color = "red") +
+        geom_rug(alpha = 0.2) +
+        labs(title = "Siblings/Spouses Distribution",
+             x = "Number of Siblings/Spouses Aboard",
+             y = "Number of passengers") +
+        theme_bw()
+```
+  
+Similar to Parch, we see a severe right-skew. Again, the zeros preclude a log transformation, and again, the best approach may be to dummy this out (e.g. zero siblings/spouses versus nonzero, or zero vs. one vs. greater than one).
+
+### Visual EDA (Categorical Variables): {.tabset}
+#### Pclass
+For the categorical predictors, we'll visualize the odds ratios with divided bar plots.
+```{r Pclass_viz}
+training %>%
+  select(Pclass, Survived) %>%
+  ggplot(aes(x = Pclass, fill = Survived)) +
+  geom_bar(position = position_dodge()) +
+  geom_text(stat="count", 
+            aes(label=..count..),
+            position = position_dodge(width = 0.9),
+            vjust=2) +
+  labs(title = "Pclass Distribution with Survival",
+       x = "Pclass",
+       y = "Number of Passengers") +
+  theme_bw()
+
 xtabs(~ Survived + Pclass, data = training)
-xtabs(~ Survived + Sex, data = training)
-xtabs(~ Survived + Embarked, data = training)
-xtabs(~ Survived + Parch, data = training)
-xtabs(~ Survived + SibSp, data = training)
 ```
+We can see a clear distinction between survival rates across cabin classes. It appears that passengers in first class survived most frequently, followed by second and third class in oder (possibly a result of socioeconomic status or physical location on the ship, perhaps first class was closer to the lifeboats or given boarding priority).
+
+***
+
+#### Sex
+For the categorical predictors, we'll visualize the odds ratios with divided bar plots.
+```{r Sex_viz}
+training %>%
+  select(Sex, Survived) %>%
+  ggplot(aes(x = Sex, fill = Survived)) +
+  geom_bar(position = position_dodge()) +
+  geom_text(stat="count", 
+            aes(label=..count..),
+            position = position_dodge(width = 0.9),
+            vjust=2) +
+  labs(title = "Sex Distribution with Survival",
+       x = "Sex",
+       y = "Number of Passengers") +
+  theme_bw()
+
+xtabs(~ Survived + Sex, data = training)
+```
+As expected, survival distribution is clearly different across the levels of `Sex` with male passengers appearing to survive far less frequently.
+
+***
+
+#### Embarked
+For the categorical predictors, we'll visualize the odds ratios with divided bar plots.
+```{r Embarked_viz}
+training %>%
+  select(Embarked, Survived) %>%
+  drop_na(Embarked) %>% # Drop missing values
+  ggplot(aes(x = Embarked, fill = Survived)) +
+  geom_bar(position = position_dodge()) +
+  geom_text(stat="count", 
+            aes(label=..count..),
+            position = position_dodge(width = 0.9),
+            vjust=2) +
+  labs(title = "Embarked Distribution with Survival",
+       x = "Embarked",
+       y = "Number of Passengers") +
+  theme_bw()
+
+xtabs(~ Survived + Embarked, data = training)
+```
+`Embarked` shows a clear association with `Survived`, with passengers who embarked at Southampton surviving much less frequently than the other two ports.
+
+***
+
+## **Feature Engineering**
+### Age vs. Childhood:
+Based on the commonly repeated lifeboat triage doctrine of "women and children first," it seems quite likely that the binary value of childhood (i.e. passenger is a child or passenger is not a child) could have different effects than the continuous numerical Age variable. I was unable to find a standard cutoff age for adulthood ca. 1912, but Encyclopedia Titanica lists children as those age 14 or under, so let's use that as a cutoff. Of course, the new variable `is_child` will have the same frequency of missing values as Age.
+
+Note: if we decide to deal with NAs in `Age` by imputing missing values, we should make sure to run this code first.
+
+```{r Age_child}
+training %<>%
+  mutate(is_child = (Age <= 14))
+
+head(training)
+```
+
+### Log Transformations:
+In case we want to use the log-transformed versions of `Age` and `Fare` later, let's add them as separate columns. To avoid infinite values, I'll replace 0 values in `Fare` with 0.01 for the transformation (but keep the original values in `Fare` itself..
+```{r log_transformations}
+Fare_proxy <- training$Fare # Create proxy to preserve original Fare values
+Fare_proxy[Fare_proxy == 0] <- 0.01 # Replace zeros with 0.01
+
+training %<>% # Mutate to add log columns.
+  mutate(ln_Age = log(Age), ln_Fare = log(Fare_proxy)) 
+```
+
+## **Logistic Regression Analysis**
+
+Logistic regression will serve not only to explore the significance of our predictors for future ML modeling, but as a baseline model for comparison. We'll stick to a significance threshold $\alpha=0.05$ when interpreting each model.
+
+### Dealing with missing values in Age:
+
+`Age` is missing for approximately 20% of passengers, which could interfere with our model training. If the values are missing at random or missing completely at random, we may be able to impute or omit them and proceed with `Age` in our models. If the missing values are missing not at random (i.e. correlated with `Age` itself) then we likely can't glean any useful information from `Age`. Unfortunately, we can't test that case directly since we don't have the missing values.  
+
+What we can do instead is run a logistic regression against the null hypothesis that missing values in `Age` are uncorrelated with the other variables. The results can't test positively for the randomness of the missing data, but could potentially rule out randomness if `Age` isn't correlated with the other variables. We can't include our engineered feature `is_child` since its missing values will correlate exactly with those of `Age`.
 
 ```{r}
-logit_Pclass_Sex <- glm(Survived ~ Pclass + Sex, 
-                        family = binomial(link="logit"), 
-                        data = training)
+# Add a proxy logical column that indicates whether Age is missing or not
+trainLogit <- training %>%
+        mutate(AgeNA = is.na(.$Age))
 
-tab_model(logit_Pclass_Sex)
+# Logistic regression against the null hypothesis that the other variables have no effect on the log odds of Age being a missing value.
+logit_AgeNA <- glm(AgeNA ~ Pclass + Sex + Fare + SibSp + Parch,
+                   family = binomial(link="logit"),
+                   data = trainLogit)
+
+tab_model(logit_AgeNA)
 ```
+  
+_Interpretation:_ With $p<0.05$ for SibSp, Parch, and both Pclass dummy levels, each variable's relationship with the log odds of any Age value being missing is significant at $\alpha=0.05$. Thus, we can assert that missing values in Age are at a minimum not missing completely at random, and may yet be missing not at random. We should keep Age in mind as a predictor but be wary of potential disturbances.
 
-#### Univariate
+### Setup:
+Before we train our regression models, we must drop missing values and check our categorical variable relationships for missing cells (combinations of categorical variables with few or no appearances in the sample). We can do that with the `xtabs` function.
+```{r logit_setup}
+# Drop NAs
+trainLogit <- training %>% drop_na(Age, Embarked)
 
-#### Multivariate
+# Cross-tabulation of categorical predictors to check for missing cells.
+xtabs(~ Survived + Pclass + Sex + Embarked, data = trainLogit)
+```
+There are clear missing cells in Queenstown and Cherbourg which will likely cause interference in logit regression. Let's try removing `Embarked` from the combination:
+```{r xtabs_noEmbarked}
+# Cross-tabulation with Embarked omitted
+xtabs(~ Survived + Pclass + Sex, data = trainLogit)
+```
+With `Embarked` removed, our missing cells have resolved (the combination of female and first/second class are close, but should be okay). We can proceed with training our models.
 
-## References
-"Exploratory Data Analysis for Feature Selection in Machine Learning" - Google
+### Model Training and Interpretation: {.tabset}
+
+#### ~ All raw EVs
+```{r logit_All, results = 'asis'}
+# Train model
+logit_All <- glm(Survived ~ Pclass + Sex + Fare + Age + Parch + SibSp,
+                        family = binomial(link="logit"), 
+                        data = trainLogit)
+
+# Output Table
+tab_model(logit_All)
+```
+```{r logit_All_Wald}
+# Wald test for overall effect of Pclass
+wald.test(b = coef(logit_All), Sigma = vcov(logit_All), Terms = 2:3)
+
+# Additional Wald test against the hypothesis Pclass[Second] - Pclass[Third] = 0 tests the 
+# significance of the difference between ranks of Pclass
+l <- cbind(0, 1, -1, 0, 0, 0, 0, 0)
+wald.test(b = coef(logit_All), Sigma = vcov(logit_All), L = l)
+```
+_Interpretation:_  
+- With $p<0.05$ for each, `Pclass[Second]`, `Pclass[Third]`, `Sex[Male]` and `Age` have significant relationships with the log odds of survival at $\alpha=0.05$. 
+- With $p=2.6\times10^{-13}<0.05$, the overall effect of `Pclass` is significant at $\alpha=0.05$.  
+- With $p=9.7\times10^{-7}<0.05$, the difference in effect on survival odds between `Pclass[Second]` and `Pclass[Third]` is significant at $\alpha=0.05$.  
+- For every one year increase in `Age`, odds of survival decrease by a factor of 0.96.  
+- When compared to a passenger in first class, a passenger in second class can expect their odds of survival to decrease by a factor of 0.28.  
+- When compared to a passenger in first class, a passenger in third class can expect their odds of survival to decrease by a factor of 0.08.  
+- When compared to a female passenger, a male passenger can expect their odds of survival to decrease by a factor of 0.07.  
+- For each additional sibling or spouse aboard, a passenger's odds of survival will decrease by a factor of 0.69.  
+
+***
+#### ~ Engineered EVs
+```{r logit_engineered, results = 'asis'}
+# Train model
+logit_engineered <- glm(Survived ~ Pclass + Sex + ln_Age + ln_Fare + is_child + Parch + SibSp,
+                                 family = binomial(link="logit"), 
+                                 data = trainLogit)
+
+# Output Table
+tab_model(logit_engineered)
+```
+```{r logit_engineered_Wald}
+# Wald test for overall effect of Pclass
+wald.test(b = coef(logit_engineered), Sigma = vcov(logit_engineered), Terms = 2:3)
+
+# Additional Wald test against the hypothesis Pclass[Second] - Pclass[Third] = 0 tests the 
+# significance of the difference between ranks of Pclass
+l <- cbind(0, 1, -1, 0, 0, 0, 0, 0, 0)
+wald.test(b = coef(logit_engineered), Sigma = vcov(logit_engineered), L = l)
+```
+_Interpretation:_  
+- With $p<0.05$ for each, `Pclass[Second]`, `Pclass[Third]`, `Sex[Male]` and `ln_Age` have significant relationships with the log odds of survival at $\alpha=0.05$.   
+- With $p=4.9\times10^{-10}<0.05$, the overall effect of `Pclass` is significant at $\alpha=0.05$.  
+- With $p=4.4\times10^{-5}<0.05$, the difference in effect on survival odds between `Pclass[Second]` and `Pclass[Third]` is significant at $\alpha=0.05$.  
+- For every one year increase in `Age`, odds of survival increase by a factor of $0.43e\approx1.17$ (the odds ratio shown in the table for ln_Age must be multiplied by the base of the log transformation, in this case $e$).
+- When compared to a passenger in first class, a passenger in second class can expect their odds of survival to decrease by a factor of 0.30.  
+- When compared to a passenger in first class, a passenger in third class can expect their odds of survival to decrease by a factor of 0.11.  
+- When compared to a female passenger, a male passenger can expect their odds of survival to decrease by a factor of 0.07.  
+- For each additional sibling or spouse aboard, a passenger's odds of survival will decrease by a factor of 0.59. 
+
+***
+#### ~ Raw EVs, no Age
+```{r logit_rawNoAge, results = 'asis'}
+# Train model
+logit_rawNoAge <- glm(Survived ~ Pclass + Sex + Fare + Parch + SibSp,
+                                 family = binomial(link="logit"), 
+                                 data = trainLogit)
+
+# Output Table
+tab_model(logit_rawNoAge)
+```
+```{r logit_rawNoAge_Wald}
+# Wald test for overall effect of Pclass
+wald.test(b = coef(logit_rawNoAge), Sigma = vcov(logit_rawNoAge), Terms = 2:3)
+
+# Additional Wald test against the hypothesis Pclass[Second] - Pclass[Third] = 0 tests the 
+# significance of the difference between ranks of Pclass
+l <- cbind(0, 1, -1, 0, 0, 0, 0)
+wald.test(b = coef(logit_rawNoAge), Sigma = vcov(logit_rawNoAge), L = l)
+```
+_Interpretation:_  
+- With $p<0.05$ for each, `Pclass[Second]`, `Pclass[Third]`, and `Sex[Male]` have significant relationships with the log odds of survival at $\alpha=0.05$.   
+- With $p=6.0\times10^{-9}<0.05$, the overall effect of `Pclass` is significant at $\alpha=0.05$.  
+- With $p=4.2\times10^{-5}<0.05$, the difference in effect on survival odds between `Pclass[Second]` and `Pclass[Third]` is significant at $\alpha=0.05$.  
+- When compared to a passenger in first class, a passenger in second class can expect their odds of survival to decrease by a factor of 0.48.  
+- When compared to a passenger in first class, a passenger in third class can expect their odds of survival to decrease by a factor of 0.18.  
+- When compared to a female passenger, a male passenger can expect their odds of survival to decrease by a factor of 0.07.
+
+***
+
+#### ~ Eng. EVs, no Age
+```{r logit_engNoAge, results = 'asis'}
+# Train model
+logit_engNoAge <- glm(Survived ~ Pclass + Sex + ln_Fare + Parch + SibSp,
+                                 family = binomial(link="logit"), 
+                                 data = trainLogit)
+
+# Output Table
+tab_model(logit_engNoAge)
+```
+```{r logit_engNoAge_Wald}
+# Wald test for overall effect of Pclass
+wald.test(b = coef(logit_engNoAge), Sigma = vcov(logit_engNoAge), Terms = 2:3)
+
+# Additional Wald test against the hypothesis Pclass[Second] - Pclass[Third] = 0 tests the 
+# significance of the difference between ranks of Pclass
+l <- cbind(0, 1, -1, 0, 0, 0, 0)
+wald.test(b = coef(logit_engNoAge), Sigma = vcov(logit_engNoAge), L = l)
+```
+_Interpretation:_  
+- With $p<0.05$ for each, `Pclass[Second]`, `Pclass[Third]`, and `Sex[Male]` have significant relationships with the log odds of survival at $\alpha=0.05$.   
+- With $p=9.2\times10^{-7}<0.05$, the overall effect of `Pclass` is significant at $\alpha=0.05$.  
+- With $p=0.00028<0.05$, the difference in effect on survival odds between `Pclass[Second]` and `Pclass[Third]` is significant at $\alpha=0.05$.  
+- When compared to a passenger in first class, a passenger in second class can expect their odds of survival to decrease by a factor of 0.47.  
+- When compared to a passenger in first class, a passenger in third class can expect their odds of survival to decrease by a factor of 0.19.  
+- When compared to a female passenger, a male passenger can expect their odds of survival to decrease by a factor of 0.07.  
+Note that in this model, `SibSp` comes very close to significance but falls short at $p=0.061>0.05$.
+***
+
+## **Conclusions**
+My analysis here is far from bulletproof, and I suspect that there is significant room for improvement upon investigation of multicollinearity among the predictors. For this reason, ML algorithms like random forest and decision tree may be more effective than my preliminary logistic regression model. These multicollinear relationships are somewhat unavoidable as sample sizes shrink at each level of categorical variables like Pclass, Embarked, and Sex, but they should be investigated nonetheless. I'm also interested in implementing interaction terms to explore potential interactions between `Pclass`, `Sex` and `Age`, since these three predictors seem to have both the largest main effects and the most potential for interactive behaviors.
+
+In the future I may return to this data to examine these inter-predictor statistical relationships. As a quick example, the following Chi-square test between Pclass and Embarked shows a significant relationship that could be interfering with our multiple regression models:
+```{r chisquare_Pclass_Embarked}
+chisq.test(table(training$Pclass, training$Embarked))
+```
+Overall, the initial logistic regression model shows some promise, and further feature engineering should be able to yield better predictive value from variables such as `Age`, `Parch`, `SibSp` and `Number`. In addition to logistic regression, I plan to apply random forest and decision trees (and potentially other ML algorithms) to compare performance before making a final submission.
+
+Furthermore, it's important to note that the interpretation of logistic regression parameters in this notebook are not entirely relevant to actually predicting survival outcomes (per the Kaggle competition), and are instead directed at gaining understanding of the statistical effects of each predictor. When I return to this project in the future, my focus will be entirely on predictive value and model performance, and the hypothesis tests shown here will serve only to inform my modeling choices.
+
+***
+
+## **References**
+
+Exploratory Data Analysis for Feature Selection in Machine Learning. Google.  
+from https://services.google.com/fh/files/misc/exploratory_data_analysis_for_feature_selection_in_machine_learning.pdf  
+
+Logit Regression: R Data Analysis. UCLA Statistical Consulting Group.  
+from https://stats.oarc.ucla.edu/r/dae/logit-regression/  
+
+Encyclopedia Titanica: Children on the Titanic.
+from https://www.encyclopedia-titanica.org/children-on-titanic/

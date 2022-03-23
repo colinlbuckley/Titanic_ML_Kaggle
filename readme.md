@@ -4,11 +4,10 @@
 ## Resources
 **R Version:** 4.1.0  
 **Packages:** ggplot2, dplyr, magrittr, DataExplorer, funModeling, aod 
+**OS:** macOS 12.2.1
 **Other Resources:** https://stats.idre.ucla.edu/r/dae/logit-regression/
 
-
-## Data Import/Cleaning
-The dataset was provided in good condition by the Kaggle competition and doesn't need much. It includes training and test sets so we do not need to partition our own.
+## Objectives
 
 ## Exploratory Data Analysis
 I explored the data in the following ways to gain information for feature selection:
