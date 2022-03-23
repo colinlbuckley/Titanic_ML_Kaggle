@@ -134,7 +134,7 @@ training %>%
         geom_vline(xintercept = median(log(training$Fare)),
                    color = "red") +
         geom_rug(alpha = 0.2) +
-        labs(title = "Log Transformed Fare Distribution",
+        labs(title = "Log-Transformed Fare Distribution",
              x = "ln(Fare)",
              y = "Number of Passengers") +
         theme_bw()
@@ -168,8 +168,8 @@ training %>%
         geom_vline(xintercept = median(log(training$Age), na.rm = TRUE), 
                    color = "red") +
         geom_rug(alpha = 0.2) +
-        labs(title = "Age Distribution",
-             x = "Age",
+        labs(title = "Log-Transformed Age Distribution",
+             x = "ln(Age)",
              y = "Number of Passengers") +
         theme_bw()
 ```
