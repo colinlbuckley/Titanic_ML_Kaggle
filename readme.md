@@ -1,5 +1,5 @@
 # Titanic: Machine Learning From Disaster: Project Overview 
-* 
+
 
 ## Resources
 **R Version:** 4.1.0  
