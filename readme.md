@@ -3,11 +3,15 @@
 
 ## Resources
 **R Version:** 4.1.0  
-**Packages:** ggplot2, dplyr, magrittr, DataExplorer, funModeling, aod 
-**OS:** macOS 12.2.1
-**Other Resources:** https://stats.idre.ucla.edu/r/dae/logit-regression/
+**Packages:** ggplot2, dplyr, magrittr, DataExplorer, funModeling, aod  
+**OS:** macOS 12.2.1  
+**Other Resources:** https://stats.idre.ucla.edu/r/dae/logit-regression/  
 
 ## Objectives
+*   Explore practices of EDA for feature selection/machine learning.
+*   Exercise good statistical fundamentals.
+*   Gain a working understanding of the data available for training.
+*   Prepare to train and compare multiple models.
 
 ## Exploratory Data Analysis
 I explored the data in the following ways to gain information for feature selection:
